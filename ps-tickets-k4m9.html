@@ -28,6 +28,10 @@ label.chk.missing{outline:1px solid var(--bad);border-radius:8px}
 .sp-item{position:relative;padding-right:42px}.spfav{position:absolute;right:6px;top:6px;background:none;border:0;font-size:20px;line-height:1;color:var(--dim);cursor:pointer;padding:6px}.spfav.on{color:#f5b301}
 .gtab{width:100%;border-collapse:collapse;margin-top:8px}.gtab th,.gtab td{border-bottom:1px solid var(--line);padding:6px;text-align:left;font-size:13px}
 .locrow{display:flex;gap:8px;align-items:end}.locrow>label{flex:1}
+
+.tprev summary{cursor:pointer;padding:2px 0}.tprev-f{width:100%;height:560px;border:0;border-radius:8px;background:#fff;margin-top:8px}
+
+#bPrev,#rPrev,#sdPrev{scroll-margin-top:10px}
 </style>
 </head><body>
 
@@ -916,6 +920,7 @@ function reviewSheet(d0, el) {
       ${st ? statFacts(st) : ''}${st && d.type !== 'WARNING' ? `<div class="facts" style="gap:8px"><span class="bigfact ${pointsFor(st, c.speed, c.limit) ? 'pts' : ''}"><b>${pointsFor(st, c.speed, c.limit) ?? '—'}</b> MVC points if convicted</span><span class="bigfact ${allCourt ? 'court' : 'pay'}"><b>${allCourt ? 'COURT' : 'PAYABLE'}</b></span></div>` : ''}${st?.elements ? `<div class="elements">${esc(st.elements)}</div>` : ''}${c.spec ? `<div class="small"><span class="muted">Specification:</span> ${esc(c.spec)}</div>` : ''}
       ${i === 0 ? (r.alerts || []).map(a => a.level === 'danger' ? `<div class="check a">🚨 ${esc(a.text)}</div>` : `<div class="check w">⚠ ${esc(a.text)}</div>`).join('') : ''}${r.errors.map(x => `<div class="check e">⛔ ${esc(x)}</div>`).join('')}${r.warnings.map(x => `<div class="check w">⚠ ${esc(x)}</div>`).join('')}${r.info.map(x => `<div class="check i">ℹ ${esc(x)}</div>`).join('')}
       ${!r.errors.length && !r.warnings.length ? '<div class="check ok">✓ Statute verified against the library and required fields complete.</div>' : ''}</div>`).join('')}
+    ${errs || crimMissingPc ? '' : ticketPreview(d, per, allCourt)}
     ${errs || crimMissingPc ? '' : `<label class="chk"><input type="checkbox" id="certify">I reviewed the statute${per.length > 1 ? 's' : ''} and facts above and certify ${d.type === 'WARNING' ? 'this warning' : 'this complaint'} is accurate.</label>`}`,
     buttons: [{ label: 'Back to edit' }, ...(errs || crimMissingPc ? [] : [{ label: d.type === 'WARNING' ? 'Record warning' : per.length > 1 ? `Issue ${per.length} summonses` : 'Issue', cls: 'primary', onClick: async sh => {
       if (!$('#certify', sh).checked) throw new Error('Check the certification box first.');
@@ -967,9 +972,9 @@ function summonsSheet(id) {
     <div class="card tight"><h3 style="margin:0">Activity</h3><div class="notes">${timelineOf(s).map(t => `<div class="note"><div class="meta">${fmtDT(t.ts)} · ${esc(t.by)}${t.role ? ' (' + esc(t.role) + ')' : ''}</div>${esc(t.action)}${t.note ? `<div class="small muted">${esc(t.note)}</div>` : ''}</div>`).join('')}</div></div>
     ${canSee ? `<div class="card tight"><div class="sec-h"><h3 style="margin:0">Court notes</h3><button class="btn sm" id="sdCase" type="button">Case # ${esc(caseNo(s) || 'add')}</button><span class="small dim">Only you and your supervisors see these. Entries are time-stamped and can't be edited.</span></div>
       <div class="notes">${(s.notes || []).map(n => `<div class="note"><div class="meta">${fmtDT(n.ts)} · ${esc(n.by)}</div>${esc(n.text)}</div>`).join('') || '<div class="dim small">No notes yet. Record anything you will need for court: observations, statements, device calibration, weather, lighting.</div>'}</div>
-      <textarea id="sdNote" placeholder="Add a note for court…"></textarea><button class="btn" id="sdAddNote" style="justify-self:start">Add note</button></div>` : '<div class="notice">Court notes and roadside paperwork are visible only to the issuing officer and their supervisors.</div>'}`,
+      <textarea id="sdNote" placeholder="Add a note for court…"></textarea><button class="btn" id="sdAddNote" style="justify-self:start">Add note</button></div>` : '<div class="notice">Court notes and roadside paperwork are visible only to the issuing officer and their supervisors.</div>'}<div id="sdPrev"></div>`,
     buttons: [
-      ...(canSee ? [{ label: 'Download copy', onClick: () => { saveFile(`${s.number}.html`, ticketDoc(s)); return false; } }] : []),
+      ...(canSee ? [{ label: 'View copy', onClick: sh => { showDocPreview($('#sdPrev', sh), ticketDoc(byId('summonses', s.id) || s), 'Driver copy'); return false; } }, { label: 'Download copy', onClick: () => { saveFile(`${s.number}.html`, ticketDoc(s)); return false; } }] : []),
       ...(mine && s.status === 'ISSUED' ? [{ label: 'Request void', cls: 'danger', onClick: () => { setTimeout(() => voidSheet(s.id), 10); } }] : []),
       ...(isSup(S.user) && s.agency_id === S.user.agency_id && s.status === 'VOID_REQUESTED' ? [{ label: 'Deny void', onClick: () => { setTimeout(() => decideVoid(s.id, false), 10); } }, { label: 'Approve & send to court', cls: 'danger', onClick: () => { setTimeout(() => decideVoid(s.id, true), 10); } }] : []),
       ...(S.user.role === 'court' && s.agency_id === S.user.agency_id && s.status === 'VOID_APPROVED' ? [{ label: 'Return to department', onClick: () => { setTimeout(() => courtVoid(s.id, false), 10); } }, { label: 'Process void', cls: 'danger', onClick: () => { setTimeout(() => courtVoid(s.id, true), 10); } }] : []),
@@ -1059,8 +1064,8 @@ function rorSheet(id) {
     <div class="grid"><label>Defendant phone<input id="rPh" type="tel" value="${esc(r?.phone || def.phone || '')}" ${ro ? 'disabled' : ''}></label><label>Defendant email<input id="rEm" type="email" autocapitalize="off" value="${esc(r?.email || def.email || '')}" ${ro ? 'disabled' : ''}></label></div>
     <label class="chk"><input type="checkbox" id="rSvc" data-req ${r ? 'checked' : ''} ${ro ? 'disabled' : ''}>I certify that I personally served a copy of this complaint-summons on the defendant${r?.at ? ` on ${esc(fmtDT(r.at))}` : ''}.</label>${r?.sig ? '<div class="small muted">Defendant signature on file from an older record.</div>' : ''}
     <label>Officer notes<textarea id="rN" ${ro ? 'disabled' : ''}>${esc(r?.notes || '')}</textarea></label>
-    <div class="small muted">Officer: ${esc(r?.officer || `${S.user.name} #${S.user.badge || ''}`)}</div>`,
-    buttons: ro ? [{ label: 'Close' }] : [{ label: 'Later' }, { label: 'Certify service', cls: 'primary', onClick: async sh => {
+    <div id="rPrev"></div><div class="small muted">Officer: ${esc(r?.officer || `${S.user.name} #${S.user.badge || ''}`)}</div>`,
+    buttons: ro ? [{ label: 'Close' }] : [{ label: 'Later' }, { label: 'Preview', onClick: sh => { const at = $('#rAt', sh).value; const draft = { ...s, ror: { at: new Date(at).getTime(), at_local: at, location: $('#rLoc', sh).value, officer: `${S.user.name} #${S.user.badge || ''}`, served: true } }; showDocPreview($('#rPrev', sh), ticketDoc(draft), 'Preview: complaint with service and release', 'PREVIEW — service not certified yet.'); return false; } }, { label: 'Certify service', cls: 'primary', onClick: async sh => {
       if (!$('#rAdv', sh).checked) throw new Error('Confirm the defendant was advised of the court date.');
       if (!$('#rSvc', sh).checked) throw new Error('Certify that you served the defendant with a copy.');
       const cur = clone(byId('summonses', id)); const at = $('#rAt', sh).value;
@@ -1561,9 +1566,9 @@ function bailRorSheet(pre = {}, existingId = null) {
       <label class="chk"><input type="checkbox" id="bCert" data-req ${ex?.served?.certified ? 'checked' : ''} ${dis}>I hereby certify that I served the <i>New Jersey Bail Recognizance Form</i> by delivering a copy to the Defendant personally.</label>
       <div class="grid">${f('bOff', 'Print Officer\'s Name', ex?.served?.officer_name || S.user.name, '', 'full')}${f('bAt', 'Date and Time', ex?.served?.at_local || localNow(), 'type="datetime-local"')}${f('bSig', 'Signature and Badge Number', ex?.served?.sig || `s/ ${S.user.name} #${S.user.badge || ''}`)}</div></section>
     <section class="fsec"><h4>Responsibility of Defendant</h4><div class="duties">${ROR_DUTIES.map(([k, t]) => `<p>(${k}) ${t}</p>`).join('')}</div>
-      ${ro ? '' : '<div class="small muted">Read these to the defendant. The copy you save below is the defendant\'s copy.</div>'}</section>`,
-    buttons: ro ? [{ label: 'Close' }, ...(S.user.role === 'court' && ex.court?.agency_id === S.user.agency_id && ex.court_status === 'TRANSMITTED' ? [{ label: 'Mark received', cls: 'ok', onClick: () => markRorReceived([ex.id]) }] : []), { label: 'Save copy', cls: 'primary', onClick: () => { saveFile(`BailRecognizance_${(ex.def?.last || 'ROR').replace(/\W+/g, '')}_${(ex.complaint_no || ex.id).replace(/\W+/g, '')}.html`, rorDoc(ex)); return false; } }]
-      : [{ label: 'Cancel' }, { label: 'Complete & save copy', cls: 'primary', onClick: async sh => {
+      ${ro ? '' : '<div class="small muted">Read these to the defendant. The copy you save below is the defendant\'s copy.</div>'}</section><div id="bPrev"></div>`,
+    buttons: ro ? [{ label: 'Close' }, ...(S.user.role === 'court' && ex.court?.agency_id === S.user.agency_id && ex.court_status === 'TRANSMITTED' ? [{ label: 'Mark received', cls: 'ok', onClick: () => markRorReceived([ex.id]) }] : []), { label: 'View copy', onClick: sh => { showDocPreview($('#bPrev', sh), rorDoc(ex), 'Bail recognizance copy'); return false; } }, { label: 'Save copy', cls: 'primary', onClick: () => { saveFile(`BailRecognizance_${(ex.def?.last || 'ROR').replace(/\W+/g, '')}_${(ex.complaint_no || ex.id).replace(/\W+/g, '')}.html`, rorDoc(ex)); return false; } }]
+      : [{ label: 'Cancel' }, { label: 'Preview', onClick: sh => { const { rec, ssn } = bailPreviewRec(sh); showDocPreview($('#bPrev', sh), rorDoc(rec, ssn), 'Preview: bail recognizance', 'PREVIEW — NOT SAVED. Check it, then tap Complete & save copy.'); return false; } }, { label: 'Complete & save copy', cls: 'primary', onClick: async sh => {
         const v = id => $('#' + id, sh).value.trim();
         if (!v('bLast') || !v('bFirst')) throw new Error('Enter the defendant\'s first and last name.');
         if (!v('bChg')) throw new Error('Enter the charge(s).');
@@ -2387,6 +2392,37 @@ function ticketQr(s) {
   if (s.type === 'WARNING' || typeof qrcode === 'undefined') return '';
   try { const q = qrcode(0, 'M'); q.addData('https://www.njmcdirect.com'); q.make();
     return `<div class="qr">${q.createSvgTag(3, 0)}<div><b>Scan to look up this ticket</b><br>Find your court's contact information${s.court?.required ? '' : ', or pay if this ticket is payable,'} at NJMCdirect.com. You'll need the ticket number <b>${esc(s.number)}</b> and court ID <b>${esc(s.court?.code || '')}</b>.${s.court?.required ? '<br><b>A court appearance is required. This ticket cannot be paid online.</b>' : ''}</div></div>`; } catch { return ''; }
+}
+
+// ---------------- Driver-copy preview before issuing ----------------
+function ticketPreview(d, per, allCourt) {
+  const ag = agencyOf(S.user.agency_id); const baseType = d.warn_of || d.type;
+  const docs = per.filter(p => p.st).map(({ c, st }) => { const s = { number: 'Assigned when issued', type: d.type, warn_of: d.warn_of || null, status: 'ISSUED', agency_id: ag.id, statute_id: st.id, statute_code: st.code, statute_title: st.title, degree: st.degree || null,
+    points: d.type === 'WARNING' ? null : pointsFor(st, c.speed, c.limit), defendant: baseType === 'PARKING' ? {} : d.defendant, vehicle: baseType === 'CRIMINAL' ? {} : d.vehicle,
+    offense: { ...d.offense, speed: c.speed || null, limit: c.limit || null, method: c.method || null, zone: c.zone || null }, spec: c.spec || '', pc: d.type === 'CRIMINAL' ? d.pc : null,
+    court: d.type === 'WARNING' ? null : { name: ag.court_name, code: ag.court_code, address: ag.court_address, date: d.court?.date, time: d.court?.time, required: allCourt }, officer_name: S.user.name, badge: S.user.badge };
+    return ticketDoc(s).replace(/<body([^>]*)>/, '<body$1><div style="border:2px dashed #c00;color:#c00;font:700 12px Arial,sans-serif;padding:6px 8px;margin-bottom:10px;text-align:center">PREVIEW — NOT ISSUED. The ticket number is assigned when you tap Issue.</div>'); });
+  if (!docs.length) return '';
+  return `<details class="card tight tprev" open><summary><b>Preview the driver's copy</b>${docs.length > 1 ? ` <span class="small muted">(${docs.length} summonses)</span>` : ''}</summary>
+    ${docs.map((h, i) => `${docs.length > 1 ? `<div class="small muted" style="margin-top:8px">Summons ${i + 1} of ${docs.length}</div>` : ''}<iframe class="tprev-f" title="Driver copy preview ${i + 1}" srcdoc="${esc(h)}"></iframe>`).join('')}
+    <div class="small dim">Check names, statute, court date and location. Go back to fix anything before issuing.</div></details>`;
+}
+
+// ---------------- Previews for every document: tickets, complaints, roadside ROR, bail recognizance ----------------
+const PREVIEW_BANNER = t => `<div style="border:2px dashed #c00;color:#c00;font:700 12px Arial,sans-serif;padding:6px 8px;margin-bottom:10px;text-align:center">${t}</div>`;
+function showDocPreview(box, html, title, banner) {
+  if (!box) return; const h = banner ? html.replace(/<body([^>]*)>/, `<body$1>${PREVIEW_BANNER(banner)}`) : html;
+  box.innerHTML = `<div class="card tight tprev"><div class="row"><b>${esc(title)}</b><div class="spacer"></div><button class="btn ghost sm" type="button" data-prevx>Hide</button></div><iframe class="tprev-f" title="${esc(title)}" srcdoc="${esc(h)}"></iframe></div>`;
+  $('[data-prevx]', box).onclick = () => { box.innerHTML = ''; }; box.scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+function bailPreviewRec(sh) {
+  const v = id => ($('#' + id, sh)?.value || '').trim(); const ssn = v('bSsn').replace(/\D/g, ''); const pick = $('#bCourtPick', sh)?.value || '';
+  return { rec: { id: 'preview', created_at: Date.now(), agency_id: S.user.agency_id, officer_id: S.user.id, officer_name: S.user.name, badge: S.user.badge || '',
+    agency_name: v('bAgency'), complaint_no: v('bCase').toUpperCase(), charges: v('bChg'), municipality: v('bMuni'), county: v('bCounty'),
+    def: { first: v('bFirst').toUpperCase(), middle: v('bMi').toUpperCase(), last: v('bLast').toUpperCase(), street: v('bStreet'), city: v('bCity'), state: v('bState').toUpperCase(), zip: v('bZip'), email: v('bEmail'), phone: v('bPhone'), dob: v('bDob'), ssn_last4: ssn ? ssn.slice(-4) : '', sbi: v('bSbi').toUpperCase() },
+    bail: { amount: v('bAmt'), date_set: v('bDate'), set_by: v('bBy') }, ror: true,
+    court: { agency_id: pick, name: v('bCourt'), address: v('bCAddr'), phone: v('bCPh'), fax: v('bCFax'), date: v('bCDate'), time: v('bCTime') },
+    served: { certified: $('#bCert', sh)?.checked, officer_name: v('bOff'), at_local: v('bAt'), at: new Date(v('bAt')).getTime() || Date.now(), sig: v('bSig') } }, ssn };
 }
 </script>
 </body></html>
